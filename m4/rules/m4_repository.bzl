@@ -31,7 +31,22 @@ cc_library(
         "src/stackovf.c",
         "src/ansi2knr.c",
     ]),
-    copts = ["-DHAVE_CONFIG_H", "-UDEBUG"] + {EXTRA_COPTS},
+    copts = [
+      "-DHAVE_CONFIG_H",
+      "-UDEBUG",
+      # The gcc toolchain in sonic-build-infra includes libc6 via `-isystem`:
+      # ```
+      #   "-isystem","<libc6>/usr/include",
+      # ```
+      # libc6 has a header called `error.h`, with a guard like `#ifdef _ERROR_H`.
+      # As fate would have it, gnulib _also_ have an `error.h`
+      # header guarded with `#ifdef _ERROR_H`.
+      #
+      # So, we need to load the error.h from gnlib before the one from the toolchain.
+      # To accomplish that, we use `-I`, which will add the headers to the
+      # _start_ of the search path for gcc.
+      "-I", "external/{REPO_NAME}/gnulib/lib",
+    ] + {EXTRA_COPTS},
     visibility = ["//bin:__pkg__"],
     deps = [
         "//gnulib:config_h",
@@ -92,7 +107,7 @@ def _m4_repository(ctx):
     ctx.file("WORKSPACE", "workspace(name = {name})\n".format(
         name = repr(ctx.name),
     ))
-    ctx.file("BUILD.bazel", _M4_BUILD.format(EXTRA_COPTS = extra_copts))
+    ctx.file("BUILD.bazel", _M4_BUILD.format(EXTRA_COPTS = extra_copts, REPO_NAME = ctx.name))
     ctx.file("bin/BUILD.bazel", _M4_BIN_BUILD.format(
         EXTRA_LINKOPTS = ctx.attr.extra_linkopts,
     ))
